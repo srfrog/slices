@@ -68,9 +68,12 @@ func ContainsSuffix(a []string, suffix string) bool {
 // Count returns the number of occurrences of 's' in 'a'
 func Count(a []string, s string) int {
 	var n int
-	for i, j := 0, len(a)-1; i < j; i, j = i+1, j-1 {
+	for i, j := 0, len(a)-1; i <= j; i, j = i+1, j-1 {
 		if a[i] == s {
 			n++
+		}
+		if i == j {
+			break
 		}
 		if a[j] == s {
 			n++

@@ -42,6 +42,7 @@ func TestCount(t *testing.T) {
 		{in: arr, s: "srfrog", out: 0},
 		{in: arr, s: "", out: 1},
 		{in: nil, s: "Lorem", out: 0},
+		{in: []string{"", "Lorem", ""}, s: "Lorem", out: 1},
 	}
 
 	for _, tc := range tests {
