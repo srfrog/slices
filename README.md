@@ -17,13 +17,17 @@
 
 Install using "go get":
 
-        go get github.com/srfrog/slices
+```bash
+go get github.com/srfrog/slices
+```
 
 Then import from your source:
 
-        import "github.com/srfrog/slices"
+```
+import "github.com/srfrog/slices"
+```
 
-View [example_test.go][1] for an extended example of basic usage and features.
+View [example_test.go][1] for examples of basic usage and features.
 
 ## Documentation
 
@@ -45,41 +49,30 @@ import(
 )
 
 func main() {
-   ss := []string{"Go", "nuts", "for", "Go"}
+	str := `Don't communicate by sharing memory - share memory by communicating`
 
-   foo := slices.Repeat("Go",3)
-   fmt.Println(foo)
+	// Split string by spaces into a slice.
+	slc := strings.Split(str, " ")
 
-   fmt.Println(slices.Count(ss, "Go"))
+	// Count the number of "memory" strings in slc.
+	memories := slices.Count(slc, "memory")
+	fmt.Println("Memories:", memories)
 
-   fmt.Println(slices.Index(ss, "Go"))
-   fmt.Println(slices.LastIndex(ss, "Go"))
+	// Split slice into two parts.
+	parts := slices.Split(slc, "-")
+	fmt.Println("Split:", parts, len(parts))
 
-   if slices.Contains(ss, "nuts") {
-      ss = slices.Replace(ss, []string{"Insanely"})
-   }
-   fmt.Println(ss)
+	// Compare second parts slice with original slc.
+	diff := slices.Diff(slc, parts[1])
+	fmt.Println("Diff:", diff)
 
-   str := slices.Shift(&ss)
-   fmt.Println(str)
-   fmt.Println(ss)
+	// Chunk the slice
+	chunks := slices.Chunk(parts[0], 1)
+	fmt.Println("Chunk:", chunks)
 
-   slices.Unshift(&ss, "Really")
-   fmt.Println(ss)
-
-   fmt.Println(slices.ToUpper(ss))
-   fmt.Println(slices.ToLower(ss))
-   fmt.Println(slices.ToTitle(ss))
-
-   fmt.Println(slices.Trim(ss,"Really"))
-   fmt.Println(slices.Filter(ss,"Go"))
-
-   fmt.Println(slices.Diff(ss,foo))
-   fmt.Println(slices.Intersect(ss,foo))
-
-   fmt.Println(slices.Rand(ss,2))
-
-   fmt.Println(slices.Reverse(ss))
+	// Merge the parts
+	merge := slices.Merge(chunks...)
+	fmt.Println("Merge:", merge)
 }
 ```
 
