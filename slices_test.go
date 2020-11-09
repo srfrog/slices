@@ -654,3 +654,171 @@ func TestUnique(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexAny(t *testing.T) {
+	type args struct {
+		a []string
+		b []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{name: "a=nil,b=nil", args: args{a: nil, b: nil}, want: -1},
+		{name: "a=nil,b=3",
+			args: args{a: nil, b: []string{"1", "2", "3"}},
+			want: -1},
+		{name: "a=1,b=3,-1",
+			args: args{a: []string{"x"}, b: []string{"1", "2", "3"}},
+			want: -1},
+		{name: "a=1,b=3,0",
+			args: args{a: []string{"2"}, b: []string{"1", "2", "3"}},
+			want: 0},
+		{name: "a=3,b=3,0",
+			args: args{a: []string{"3", "2", "1"}, b: []string{"1", "2", "3"}},
+			want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IndexAny(tt.args.a, tt.args.b); got != tt.want {
+				t.Errorf("IndexAny() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLastIndexAny(t *testing.T) {
+	type args struct {
+		a []string
+		b []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{name: "a=nil,b=nil", args: args{a: nil, b: nil}, want: -1},
+		{name: "a=nil,b=3",
+			args: args{a: nil, b: []string{"1", "2", "3"}},
+			want: -1},
+		{name: "a=1,b=3,-1",
+			args: args{a: []string{"x"}, b: []string{"1", "2", "3"}},
+			want: -1},
+		{name: "a=1,b=3,0",
+			args: args{a: []string{"2"}, b: []string{"1", "2", "3"}},
+			want: 0},
+		{name: "a=3,b=3,0",
+			args: args{a: []string{"3", "2", "1"}, b: []string{"1", "2", "3"}},
+			want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := LastIndexAny(tt.args.a, tt.args.b); got != tt.want {
+				t.Errorf("LastIndexAny() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRepeat(t *testing.T) {
+	type args struct {
+		s     string
+		count int
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{name: "empty", args: args{s: "", count: 0}, want: []string{}},
+		{name: "x1",
+			args: args{s: "x", count: 1},
+			want: []string{"x"}},
+		{name: "x5",
+			args: args{s: "x", count: 5},
+			want: []string{"x", "x", "x", "x", "x"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Repeat(tt.args.s, tt.args.count); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Repeat() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSearch(t *testing.T) {
+	type args struct {
+		a      []string
+		substr string
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{name: "nil", args: args{a: nil, substr: ""}, want: -1},
+		{name: "a=3,empty",
+			args: args{a: []string{"a", "", "c"}, substr: ""},
+			want: 0},
+		{name: "a=3,space",
+			args: args{a: []string{"a", " ", "c"}, substr: " "},
+			want: 1},
+		{name: "a=3,apple",
+			args: args{a: []string{"orange", "quenepas", "crabapple", "kiwi"}, substr: "apple"},
+			want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Search(tt.args.a, tt.args.substr); got != tt.want {
+				t.Errorf("Search() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReduce(t *testing.T) {
+	type args struct {
+		a []string
+		f func(string, int, string) string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{name: "single",
+			args: args{
+				a: []string{"1"},
+				f: func(acc string, i int, v string) string { return "" }},
+			want: "1"},
+		{name: "max",
+			args: args{
+				a: []string{"a", "b", "a", "b", "c", "e", "e", "c", "d", "d", "d", "d"},
+				f: func(acc string, i int, v string) string {
+					if v > acc {
+						return v
+					}
+					return acc
+				}},
+			want: "e"},
+		{name: "join",
+			args: args{
+				a: []string{"1", "2", "3", "4"},
+				f: func(acc string, i int, v string) string {
+					if acc != "" {
+						acc = acc + ", "
+					}
+					return acc + v
+				}},
+			want: "1, 2, 3, 4"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Reduce(tt.args.a, tt.args.f); got != tt.want {
+				t.Errorf("Reduce() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

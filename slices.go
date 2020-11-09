@@ -11,10 +11,20 @@ import (
 	"strings"
 )
 
-// streq just compares 2 strings, used as base comparison.
-func streq(s1, s2 string) bool { return s1 == s2 }
+// ValueFunc is a value comparison func, used to compare element values in a slice.
+type ValueFunc func(v string) bool
 
-func compareFunc(a, b []string, f func(string, string) bool) int {
+// Compare returns an integer comparing two slices lexicographically.
+// The result will be 0 if a==b, or that a has all values of b.
+// The result will be -1 if a < b, or a is shorter than b.
+// The result will be +1 if a > b, or a is longer than b.
+// A nil argument is equivalent to an empty slice.
+func Compare(a, b []string) int {
+	return CompareFunc(a, b, func(v1, v2 string) bool { return v1 == v2 })
+}
+
+// CompareFunc returns an integer comparing two slices with func f.
+func CompareFunc(a, b []string, f func(string, string) bool) int {
 	var i int
 
 	m, n := len(a), len(b)
@@ -36,46 +46,36 @@ func compareFunc(a, b []string, f func(string, string) bool) int {
 	return i - n
 }
 
-// Compare returns an integer comparing two slices lexicographically.
-// The result will be 0 if a==b, or that a has all values of b.
-// The result will be -1 if a < b, or a is shorter than b.
-// The result will be +1 if a > b, or a is longer than b.
-// A nil argument is equivalent to an empty slice.
-func Compare(a, b []string) int {
-	return compareFunc(a, b, streq)
-}
-
-// Compare returns an integer comparing two slices with func f.
-func CompareFunc(a, b []string, f func(string, string) bool) int {
-	return compareFunc(a, b, f)
-}
-
-// Contains returns true if s is in b, false otherwise
+// Contains returns true if s is in a, false otherwise
 func Contains(a []string, s string) bool {
 	return Index(a, s) != -1
 }
 
-// ContainsAny returns true if any value in b is in b, false otherwise
+// ContainsAny returns true if any value in b is in a, false otherwise
 func ContainsAny(a, b []string) bool {
 	return IndexAny(a, b) != -1
 }
 
-// ContainsPrefix returns true if any entry in b has prefix, false otherwise
+// ContainsPrefix returns true if any element in a has prefix, false otherwise
 func ContainsPrefix(a []string, prefix string) bool {
-	return indexFunc(a, prefix, strings.HasPrefix) != -1
+	return IndexFunc(a, ValueHasPrefix(prefix)) != -1
 }
 
-// ContainsSuffix returns true if any entry in b has suffix, false otherwise
+// ContainsSuffix returns true if any element in a has suffix, false otherwise
 func ContainsSuffix(a []string, suffix string) bool {
-	return indexFunc(a, suffix, strings.HasSuffix) != -1
+	return IndexFunc(a, ValueHasSuffix(suffix)) != -1
 }
 
-// Count returns the number of occurrences of s in b
+// Count returns the number of occurrences of s in a.
 func Count(a []string, s string) int {
+	if len(a) == 0 {
+		return 0
+	}
+
 	var n int
 
 	for i := range a {
-		if streq(a[i], s) {
+		if a[i] == s {
 			n++
 		}
 	}
@@ -83,14 +83,14 @@ func Count(a []string, s string) int {
 	return n
 }
 
-// Diff returns a slice with all the elements of b that are not found in b
+// Diff returns a slice with all the elements of b that are not found in a.
 func Diff(a, b []string) []string {
-	return diffFunc(a, b, func(a []string, s string) bool { return !Contains(a, s) })
+	return DiffFunc(a, b, func(ss []string, v string) bool { return !Contains(ss, v) })
 }
 
-// diffFunc compares the elements of b with those of b using f comparison function (bool).
-// It returns a slice of the elements in b that are not found in b which f() == true.
-func diffFunc(a, b []string, f func(a []string, s string) bool) []string {
+// DiffFunc compares the elements of b with those of b using f func.
+// It returns a slice of the elements in b that are not found in a where cmp() == true.
+func DiffFunc(a, b []string, f func([]string, string) bool) []string {
 	var c []string
 
 	for i := range a {
@@ -111,7 +111,7 @@ func Equal(a, b []string) bool {
 // EqualFold returns a boolean reporting whether a and b
 // are the same length and their values are equal under Unicode case-folding.
 func EqualFold(a, b []string) bool {
-	return len(a) == len(b) && compareFunc(a, b, strings.EqualFold) == 0
+	return len(a) == len(b) && CompareFunc(a, b, strings.EqualFold) == 0
 }
 
 // Fill is an alias of Repeat.
@@ -119,13 +119,22 @@ func Fill(n int, s string) []string {
 	return Repeat(s, n)
 }
 
-// filterFunc runs through a and compares each element with func f and
-// it returns a slice of the elements in a where f returns true.
-func filterFunc(a []string, s string, f func(string, string) bool) []string {
+// Filter returns a slice with all the elements of a that match string s.
+func Filter(a []string, s string) []string {
+	return FilterFunc(a, ValueEquals(s))
+}
+
+// FilterFunc returns a slice with all the elements of a that match string s that
+// satisfy f(s). If func f returns true, the value will be filtered from b.
+func FilterFunc(a []string, f ValueFunc) []string {
+	if f == nil {
+		return nil
+	}
+
 	var b []string
 
 	for i := range a {
-		if f(a[i], s) {
+		if f(a[i]) {
 			b = append(b, a[i])
 		}
 	}
@@ -133,29 +142,14 @@ func filterFunc(a []string, s string, f func(string, string) bool) []string {
 	return b
 }
 
-// Filter returns a slice with all the elements of b that match string s
-func Filter(a []string, s string) []string {
-	return filterFunc(a, s, streq)
-}
-
-// FilterFunc returns a slice with all the elements of b that match string s that
-// satisfy f(s). If func f returns true, the value will be filtered from b.
-func FilterFunc(a []string, f func(string) bool) []string {
-	if f == nil {
-		return nil
-	}
-
-	return filterFunc(a, "", func(v string, _ string) bool { return f(v) })
-}
-
-// FilterPrefix returns a slice with all the elements of b that have prefix.
+// FilterPrefix returns a slice with all the elements of a that have prefix.
 func FilterPrefix(a []string, prefix string) []string {
-	return filterFunc(a, prefix, strings.HasPrefix)
+	return FilterFunc(a, ValueHasPrefix(prefix))
 }
 
-// FilterSuffix returns a slice with all the elements of b that have suffix.
+// FilterSuffix returns a slice with all the elements of a that have suffix.
 func FilterSuffix(a []string, suffix string) []string {
-	return filterFunc(a, suffix, strings.HasSuffix)
+	return FilterFunc(a, ValueHasSuffix(suffix))
 }
 
 // Chunk will divide a slice into subslices with size elements into a new 2d slice.
@@ -177,11 +171,32 @@ func Chunk(a []string, size int) [][]string {
 	return aa
 }
 
-// indexFunc runs through b and compares each element with s using f function.
-// It returns the index of the first occurrence of s in b, or -1 if not found.
-func indexFunc(a []string, s string, f func(string, string) bool) int {
+// Index returns the index of the first instance of s in a, or -1 if not found
+func Index(a []string, s string) int {
+	return IndexFunc(a, ValueEquals(s))
+}
+
+// IndexAny returns the index of the first instance of b in a, or -1 if not found
+func IndexAny(a, b []string) int {
+	ret, m := -1, 0
+
+	for idx := range genIndex(a, b, Index) {
+		if idx == m {
+			return idx
+		}
+		if ret == -1 || idx < ret {
+			ret = idx
+		}
+	}
+
+	return ret
+}
+
+// IndexFunc returns the index of the first element in a where f(s) == true,
+// or -1 if not found.
+func IndexFunc(a []string, f ValueFunc) int {
 	for i := range a {
-		if f(a[i], s) {
+		if f(a[i]) {
 			return i
 		}
 	}
@@ -189,24 +204,9 @@ func indexFunc(a []string, s string, f func(string, string) bool) int {
 	return -1
 }
 
-// Index returns the index of the first instance of s in b, or -1 if not found
-func Index(a []string, s string) int {
-	return indexFunc(a, s, streq)
-}
-
-// IndexAny returns the index of the first instance of b in b, or -1 if not found
-func IndexAny(a, b []string) int {
-	return fanOutFunc(a, b, Index)
-}
-
-// IndexFunc returns the index into a of the first string satifying f(s), or -1 if not found.
-func IndexFunc(a []string, f func(string) bool) int {
-	return indexFunc(a, "", func(v string, _ string) bool { return f(v) })
-}
-
 // Intersect returns a slice with all the elements of b that are found in b.
 func Intersect(a, b []string) []string {
-	return diffFunc(a, b, Contains)
+	return DiffFunc(a, b, Contains)
 }
 
 // InsertAt inserts the values in slice a at index idx.
@@ -233,11 +233,32 @@ func InsertAt(a []string, idx int, values ...string) []string {
 	return b
 }
 
-// lastIndexFunc runs through b and compares each element with s using f function.
-// It returns the index of the last occurrence of s in b, or -1 if not found.
-func lastIndexFunc(a []string, s string, f func(string, string) bool) int {
+// LastIndex returns the index of the last instance of s in a, or -1 if not found
+func LastIndex(a []string, s string) int {
+	return LastIndexFunc(a, ValueEquals(s))
+}
+
+// LastIndexAny returns the index of the last instance of b in a, or -1 if not found
+func LastIndexAny(a, b []string) int {
+	ret, m := -1, len(a)
+
+	for idx := range genIndex(a, b, LastIndex) {
+		if idx == m {
+			return idx
+		}
+		if idx != -1 && idx > ret {
+			ret = idx
+		}
+	}
+
+	return ret
+}
+
+// LastIndexFunc returns the index of the last element in a where f(s) == true,
+// or -1 if not found.
+func LastIndexFunc(a []string, f ValueFunc) int {
 	for i := len(a) - 1; i >= 0; i-- {
-		if f(a[i], s) {
+		if f(a[i]) {
 			return i
 		}
 	}
@@ -245,25 +266,10 @@ func lastIndexFunc(a []string, s string, f func(string, string) bool) int {
 	return -1
 }
 
-// LastIndex returns the index of the last instance of s in b, or -1 if not found
-func LastIndex(a []string, s string) int {
-	return lastIndexFunc(a, s, streq)
-}
-
-// LastIndexAny returns the index of the last instance of b in b, or -1 if not found
-func LastIndexAny(a, b []string) int {
-	return fanOutFunc(a, b, LastIndex)
-}
-
-// LastIndexFunc returns the index into a of the last string satifying f(s), or -1 if none do.
-func LastIndexFunc(a []string, f func(string) bool) int {
-	return lastIndexFunc(a, "", func(v string, _ string) bool { return f(v) })
-}
-
-// LastSearch returns the index of the last entry containing the substring s in b,
-// or -1 if not found
-func LastSearch(a []string, s string) int {
-	return lastIndexFunc(a, s, strings.Contains)
+// LastSearch returns the index of the last element containing substr in a,
+// or -1 if not found. An empty substr matches any.
+func LastSearch(a []string, substr string) int {
+	return LastIndexFunc(a, ValueContains(substr))
 }
 
 // Map returns a new slice with the function 'mapping' applied to each element of b
@@ -273,6 +279,7 @@ func Map(mapping func(string) string, a []string) []string {
 	}
 
 	b := make([]string, len(a))
+
 	for i := range a {
 		b[i] = mapping(a[i])
 	}
@@ -314,17 +321,49 @@ func Push(a *[]string, values ...string) int {
 	return len(*a)
 }
 
-// Repeat returns a slice consisting of n copies of s.
-func Repeat(s string, n int) []string {
-	a := make([]string, n)
+// Reduce applies the f func to each element in a and aggregates the result in acc
+// and returns the total of the iterations. If there is only one value in the slice,
+// it is returned.
+// This func panics if f func is nil, or if the slice is empty.
+func Reduce(a []string, f func(string, int, string) string) string {
+	if f == nil {
+		panic("slices: nil Reduce reducer func")
+	}
+
+	if len(a) == 0 {
+		panic("slices: empty Reduce slice")
+	}
+
+	acc := a[0]
+
+	Walk(a[1:], func(idx int, val string) {
+		acc = f(acc, idx, val)
+	})
+
+	return acc
+}
+
+// Repeat returns a slice consisting of count copies of s.
+func Repeat(s string, count int) []string {
+	return RepeatFunc(func() string { return s }, count)
+}
+
+// RepeatFunc applies func f and returns a slice consisting of count values.
+func RepeatFunc(f func() string, count int) []string {
+	if count < 0 {
+		panic("slices: negative Repeat count")
+	}
+
+	a := make([]string, count)
+
 	for i := range a {
-		a[i] = s
+		a[i] = f()
 	}
 
 	return a
 }
 
-// Replace returns a copy of the slice b with the first n instances of old replaced by new.
+// Replace returns a copy of the slice a with the first n instances of old replaced by new.
 // If n < 0, there is no limit on the number of replacements.
 func Replace(a []string, old, new string, n int) []string {
 	m := len(a)
@@ -352,28 +391,35 @@ func Replace(a []string, old, new string, n int) []string {
 	return t
 }
 
-// ReplaceAll returns a copy of the slice b with all instances of old replaced by new.
+// ReplaceAll returns a copy of the slice a with all instances of old replaced by new.
 func ReplaceAll(a []string, old, new string) []string {
 	return Replace(a, old, new, -1)
 }
 
-// Rand returns a new slice with n number of random elements of a.
+// Rand returns a new slice with n number of random elements of a
+// using rand.Intn to select the elements.
 // Note: You may want initialize the rand seed once in your program.
 //
 //    rand.Seed(time.Now().UnixNano())
 //
 func Rand(a []string, n int) []string {
+	return RandFunc(a, n, rand.Intn)
+}
+
+// RandFunc returns a new slice with n number of random elements of a
+// using func f to select the elements.
+func RandFunc(a []string, n int, f func(int) int) []string {
 	b := make([]string, n)
 	if m := len(a); m > 0 {
 		for i := 0; i < n; i++ {
-			b[i] = a[rand.Intn(m)]
+			b[i] = a[f(m)]
 		}
 	}
 
 	return b
 }
 
-// Reverse returns a slice of the reverse index order elements of b.
+// Reverse returns a slice of the reverse index order elements of a.
 func Reverse(a []string) []string {
 	for i, j := 0, len(a)-1; i < j; i, j = i+1, j-1 {
 		a[i], a[j] = a[j], a[i]
@@ -382,14 +428,14 @@ func Reverse(a []string) []string {
 	return a
 }
 
-// Search returns the index of the first entry containing the substring s in b,
-// or -1 if not found
-func Search(a []string, s string) int {
-	return indexFunc(a, s, strings.Contains)
+// Search returns the index of the first element containing substr in a,
+// or -1 if not found. An empty substr matches any.
+func Search(a []string, substr string) int {
+	return IndexFunc(a, ValueContains(substr))
 }
 
-// Shift shifts the first element of *a and returns it, shortening the slice by one.
-// If *a is empty returns empty string "".
+// Shift shifts the first element of a and returns it, shortening the slice by one.
+// If a is empty returns empty string "".
 // Note that this function will change the slice pointed by a.
 func Shift(a *[]string) string {
 	var s string
@@ -401,7 +447,7 @@ func Shift(a *[]string) string {
 	return s
 }
 
-// Shuffle returns a slice with randomized order of elements in b.
+// Shuffle returns a slice with randomized order of elements in a.
 // Note: You may want initialize the rand seed once in your program.
 //
 //    rand.Seed(time.Now().UnixNano())
@@ -494,7 +540,7 @@ func Splice(a []string, offset, length int, b ...string) []string {
 	return append(a[0:offset], append(b, a[offset+length:]...)...)
 }
 
-// slice works almost like strings.genSplit() but for slices.
+// split works almost like strings.genSplit() but for slices.
 func split(a []string, sep string, n int) [][]string {
 	switch {
 	case n == 0:
@@ -545,13 +591,22 @@ func SplitN(a []string, sep string, n int) [][]string {
 	return split(a, sep, n)
 }
 
-// trimFunc runs through a and compares each element with func f and
-// it returns a slice of the elements in a where f returns false.
-func trimFunc(a []string, s string, f func(string, string) bool) []string {
+// Trim returns a slice with all the elements of a that don't match string s.
+func Trim(a []string, s string) []string {
+	return TrimFunc(a, ValueEquals(s))
+}
+
+// TrimFunc returns a slice with all the elements of a that don't match string s that
+// satisfy f(s). If func f returns true, the value will be trimmed from a.
+func TrimFunc(a []string, f ValueFunc) []string {
+	if f == nil {
+		return a
+	}
+
 	var b []string
 
 	for i := range a {
-		if !f(a[i], s) {
+		if !f(a[i]) {
 			b = append(b, a[i])
 		}
 	}
@@ -559,29 +614,14 @@ func trimFunc(a []string, s string, f func(string, string) bool) []string {
 	return b
 }
 
-// Trim returns a slice with all the elements of a that don't match string s.
-func Trim(a []string, s string) []string {
-	return trimFunc(a, s, streq)
-}
-
-// TrimFunc returns a slice with all the elements of a that don't match string s that
-// satisfy f(s). If func f returns true, the value will be trimmed from a.
-func TrimFunc(a []string, f func(value string) bool) []string {
-	if f == nil {
-		return a
-	}
-
-	return trimFunc(a, "", func(v string, _ string) bool { return f(v) })
-}
-
 // TrimPrefix returns a slice with all the elements of a that don't have prefix.
 func TrimPrefix(a []string, prefix string) []string {
-	return trimFunc(a, prefix, strings.HasPrefix)
+	return TrimFunc(a, ValueHasPrefix(prefix))
 }
 
 // TrimSuffix returns a slice with all the elements of a that don't have suffix.
 func TrimSuffix(a []string, suffix string) []string {
-	return trimFunc(a, suffix, strings.HasSuffix)
+	return TrimFunc(a, ValueHasSuffix(suffix))
 }
 
 // Unique returns a slice with duplicate values removed.
@@ -609,21 +649,57 @@ func Unshift(a *[]string, s ...string) int {
 	return len(*a)
 }
 
-func fanOutFunc(a, b []string, fof func([]string, string) int) int {
+// ValueContains returns true if element value v contains substr.
+func ValueContains(substr string) ValueFunc {
+	return func(v string) bool {
+		return strings.Contains(v, substr)
+	}
+}
+
+// ValueEquals returns true if element value v equals s.
+func ValueEquals(s string) ValueFunc {
+	return func(v string) bool {
+		return v == s
+	}
+}
+
+// ValueHasPrefix returns true if element value begins with prefix.
+func ValueHasPrefix(prefix string) ValueFunc {
+	return func(v string) bool {
+		return strings.HasPrefix(v, prefix)
+	}
+}
+
+// ValueHasPrefix returns true if element value ends with suffix.
+func ValueHasSuffix(suffix string) ValueFunc {
+	return func(v string) bool {
+		return strings.HasSuffix(v, suffix)
+	}
+}
+
+// Walk applies the f func to each element in a.
+func Walk(a []string, f func(idx int, val string)) {
+	for idx := range a {
+		f(idx, a[idx])
+	}
+}
+
+func genIndex(a, b []string, f func([]string, string) int) <-chan int {
 	l := len(b)
+
 	rc := make(chan int, l)
-	for i := 0; i < l; i++ {
-		go func(s string) {
-			rc <- fof(a, s)
-		}(b[i])
-	}
+	go func() {
+		defer close(rc)
 
-	ret := -1
-	for r := range rc {
-		if r != -1 && r < ret {
-			ret = r
+		if l == 0 {
+			rc <- -1
+			return
 		}
-	}
 
-	return ret
+		for i := 0; i < l; i++ {
+			rc <- f(a, b[i])
+		}
+	}()
+
+	return rc
 }
