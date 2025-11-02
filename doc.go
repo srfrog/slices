@@ -1,8 +1,8 @@
-// Copyright (c) 2019 srfrog - https://srfrog.me
+// Copyright (c) 2025 srfrog - https://srfrog.dev
 // Use of this source code is governed by the license in the LICENSE file.
 
 // Package slices ...
 package slices
 
 // Version is the version of this package.
-const Version = "1.0.1"
+const Version = "1.1.0"
