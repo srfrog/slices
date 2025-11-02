@@ -1,4 +1,4 @@
-// Copyright (c) 2019 srfrog - https://srfrog.me
+// Copyright (c) 2025 srfrog - https://srfrog.dev
 // Use of this source code is governed by the license in the LICENSE file.
 
 package slices
@@ -341,6 +341,32 @@ func TestChunk(t *testing.T) {
 	}
 }
 
+func TestDiff(t *testing.T) {
+	type args struct {
+		a []string
+		b []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{name: "nil", args: args{a: nil, b: nil}, want: nil},
+		{name: "empty b", args: args{a: []string{"1", "2"}, b: nil}, want: []string{"1", "2"}},
+		{name: "no diff", args: args{a: []string{"1", "2"}, b: []string{"1", "2", "3"}}, want: nil},
+		{name: "partial diff",
+			args: args{a: []string{"1", "2", "3", "2"}, b: []string{"2"}},
+			want: []string{"1", "3"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Diff(tt.args.a, tt.args.b); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Diff() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIntersect(t *testing.T) {
 	type args struct {
 		a []string
@@ -368,6 +394,48 @@ func TestIntersect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Intersect(tt.args.a, tt.args.b); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Intersect() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDiffFunc(t *testing.T) {
+	type args struct {
+		a []string
+		b []string
+		f func(map[string]struct{}, string) bool
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{name: "nil func", args: args{a: []string{"a"}, b: []string{"a"}, f: nil}, want: nil},
+		{name: "case insensitive diff",
+			args: args{
+				a: []string{"Go", "Lang", "GO"},
+				b: []string{"go"},
+				f: func(set map[string]struct{}, v string) bool {
+					_, ok := set[strings.ToLower(v)]
+					return !ok
+				},
+			},
+			want: []string{"Lang"}},
+		{name: "intersect alias",
+			args: args{
+				a: []string{"a", "b", "c"},
+				b: []string{"b", "c"},
+				f: func(set map[string]struct{}, v string) bool {
+					_, ok := set[v]
+					return ok
+				},
+			},
+			want: []string{"b", "c"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DiffFunc(tt.args.a, tt.args.b, tt.args.f); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("DiffFunc() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -427,6 +495,61 @@ func TestShuffle(t *testing.T) {
 	}
 }
 
+func TestRandFunc(t *testing.T) {
+	t.Run("negative count panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		RandFunc([]string{"a"}, -1, func(int) int { return 0 })
+	})
+
+	t.Run("nil selector panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		RandFunc([]string{"a"}, 1, nil)
+	})
+
+	t.Run("selector out of range panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		RandFunc([]string{"a"}, 1, func(max int) int { return max })
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		if got := RandFunc(nil, 3, func(int) int { return 0 }); len(got) != 0 {
+			t.Fatalf("RandFunc() expected empty slice, got %v", got)
+		}
+	})
+
+	t.Run("zero count", func(t *testing.T) {
+		if got := RandFunc([]string{"a"}, 0, func(int) int { return 0 }); len(got) != 0 {
+			t.Fatalf("RandFunc() expected empty slice, got %v", got)
+		}
+	})
+
+	t.Run("deterministic selector", func(t *testing.T) {
+		s := []string{"a", "b", "c"}
+		idx := -1
+		selector := func(max int) int {
+			idx = (idx + 1) % max
+			return idx
+		}
+		got := RandFunc(s, 4, selector)
+		want := []string{"a", "b", "c", "a"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("RandFunc() = %v, want %v", got, want)
+		}
+	})
+}
+
 func TestInsertAt(t *testing.T) {
 	type args struct {
 		a      []string
@@ -454,6 +577,12 @@ func TestInsertAt(t *testing.T) {
 			want: []string{"a", "b", "1", "c"}},
 		{name: "a=3,v=1,idx=3",
 			args: args{a: []string{"a", "b", "c"}, idx: 3, values: []string{"1"}},
+			want: []string{"a", "b", "c", "1"}},
+		{name: "a=3,v=1,idx=-2",
+			args: args{a: []string{"a", "b", "c"}, idx: -2, values: []string{"1"}},
+			want: []string{"1", "a", "b", "c"}},
+		{name: "a=3,v=1,idx=-1",
+			args: args{a: []string{"a", "b", "c"}, idx: -1, values: []string{"1"}},
 			want: []string{"a", "b", "c", "1"}},
 	}
 	for _, tt := range tests {
@@ -616,6 +745,9 @@ func TestSplice(t *testing.T) {
 		{name: "a=10,b=3,offset=3,length=3",
 			args: args{a: Repeat("x", 10), offset: 3, length: 3, b: []string{"1", "2", "3"}},
 			want: []string{"x", "x", "x", "1", "2", "3", "x", "x", "x", "x"}},
+		{name: "insert only",
+			args: args{a: []string{"a", "b"}, offset: 1, length: 0, b: []string{"x", "y"}},
+			want: []string{"a", "x", "y", "b"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

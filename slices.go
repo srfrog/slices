@@ -1,4 +1,4 @@
-// Copyright (c) 2019 srfrog - https://srfrog.me
+// Copyright (c) 2025 srfrog - https://srfrog.dev
 // Use of this source code is governed by the license in the LICENSE file.
 
 // Package slices is a collection of functions to operate with string slices.
@@ -83,23 +83,58 @@ func Count(a []string, s string) int {
 	return n
 }
 
-// Diff returns a slice with all the elements of b that are not found in a.
+// Diff returns a slice with all the elements of a that are not found in b.
 func Diff(a, b []string) []string {
-	return DiffFunc(a, b, func(ss []string, v string) bool { return !Contains(ss, v) })
-}
+	if len(a) == 0 {
+		return nil
+	}
+	if len(b) == 0 {
+		return append([]string(nil), a...)
+	}
 
-// DiffFunc compares the elements of b with those of b using f func.
-// It returns a slice of the elements in b that are not found in a where cmp() == true.
-func DiffFunc(a, b []string, f func([]string, string) bool) []string {
-	var c []string
+	set := make(map[string]struct{}, len(b))
+	for _, v := range b {
+		set[v] = struct{}{}
+	}
 
-	for i := range a {
-		if f(b, a[i]) {
-			c = append(c, a[i])
+	res := make([]string, 0, len(a))
+	for _, v := range a {
+		if _, ok := set[v]; !ok {
+			res = append(res, v)
 		}
 	}
 
-	return c
+	if len(res) == 0 {
+		return nil
+	}
+
+	return res
+}
+
+// DiffFunc compares the elements of a against the lookup derived from b using f.
+// It returns a slice of the elements in a where f returns true.
+func DiffFunc(a, b []string, f func(map[string]struct{}, string) bool) []string {
+	if len(a) == 0 || f == nil {
+		return nil
+	}
+
+	set := make(map[string]struct{}, len(b))
+	for _, v := range b {
+		set[v] = struct{}{}
+	}
+
+	res := make([]string, 0, len(a))
+	for _, v := range a {
+		if f(set, v) {
+			res = append(res, v)
+		}
+	}
+
+	if len(res) == 0 {
+		return nil
+	}
+
+	return res
 }
 
 // Equal returns a boolean reporting whether a and b are the same length and contain the
@@ -131,12 +166,20 @@ func FilterFunc(a []string, f ValueFunc) []string {
 		return nil
 	}
 
-	var b []string
+	if len(a) == 0 {
+		return nil
+	}
+
+	b := make([]string, 0, len(a))
 
 	for i := range a {
 		if f(a[i]) {
 			b = append(b, a[i])
 		}
+	}
+
+	if len(b) == 0 {
+		return nil
 	}
 
 	return b
@@ -178,18 +221,22 @@ func Index(a []string, s string) int {
 
 // IndexAny returns the index of the first instance of b in a, or -1 if not found
 func IndexAny(a, b []string) int {
-	ret, m := -1, 0
+	if len(a) == 0 || len(b) == 0 {
+		return -1
+	}
 
-	for idx := range genIndex(a, b, Index) {
-		if idx == m {
-			return idx
-		}
-		if ret == -1 || idx < ret {
-			ret = idx
+	set := make(map[string]struct{}, len(b))
+	for _, v := range b {
+		set[v] = struct{}{}
+	}
+
+	for i, v := range a {
+		if _, ok := set[v]; ok {
+			return i
 		}
 	}
 
-	return ret
+	return -1
 }
 
 // IndexFunc returns the index of the first element in a where f(s) == true,
@@ -206,14 +253,22 @@ func IndexFunc(a []string, f ValueFunc) int {
 
 // Intersect returns a slice with all the elements of b that are found in b.
 func Intersect(a, b []string) []string {
-	return DiffFunc(a, b, Contains)
+	return DiffFunc(a, b, func(set map[string]struct{}, v string) bool {
+		_, ok := set[v]
+		return ok
+	})
 }
 
 // InsertAt inserts the values in slice a at index idx.
 // This func will append the values if idx doesn't fit in the slice or is negative.
 func InsertAt(a []string, idx int, values ...string) []string {
 	m, n := len(a), len(values)
-	if idx == -1 || idx > m {
+	switch {
+	case idx == -1:
+		idx = m
+	case idx < 0:
+		idx = 0
+	case idx > m:
 		idx = m
 	}
 
@@ -240,18 +295,22 @@ func LastIndex(a []string, s string) int {
 
 // LastIndexAny returns the index of the last instance of b in a, or -1 if not found
 func LastIndexAny(a, b []string) int {
-	ret, m := -1, len(a)
+	if len(a) == 0 || len(b) == 0 {
+		return -1
+	}
 
-	for idx := range genIndex(a, b, LastIndex) {
-		if idx == m {
-			return idx
-		}
-		if idx != -1 && idx > ret {
-			ret = idx
+	set := make(map[string]struct{}, len(b))
+	for _, v := range b {
+		set[v] = struct{}{}
+	}
+
+	for i := len(a) - 1; i >= 0; i-- {
+		if _, ok := set[a[i]]; ok {
+			return i
 		}
 	}
 
-	return ret
+	return -1
 }
 
 // LastIndexFunc returns the index of the last element in a where f(s) == true,
@@ -289,8 +348,15 @@ func Map(mapping func(string) string, a []string) []string {
 
 // Merge combines zero or many slices together, while preserving the order of elements.
 func Merge(aa ...[]string) []string {
-	var a []string
+	total := 0
+	for _, s := range aa {
+		total += len(s)
+	}
+	if total == 0 {
+		return nil
+	}
 
+	a := make([]string, 0, total)
 	for i := range aa {
 		a = append(a, aa[i]...)
 	}
@@ -397,11 +463,11 @@ func ReplaceAll(a []string, old, new string) []string {
 }
 
 // Rand returns a new slice with n number of random elements of a
-// using rand.Intn to select the elements.
+// using rand.Intn to select the elements. The selection is not
+// cryptographically secure; prefer RandFunc with crypto/rand for secure use.
 // Note: You may want initialize the rand seed once in your program.
 //
-//    rand.Seed(time.Now().UnixNano())
-//
+//	rand.Seed(time.Now().UnixNano())
 func Rand(a []string, n int) []string {
 	return RandFunc(a, n, rand.Intn)
 }
@@ -409,11 +475,26 @@ func Rand(a []string, n int) []string {
 // RandFunc returns a new slice with n number of random elements of a
 // using func f to select the elements.
 func RandFunc(a []string, n int, f func(int) int) []string {
+	if n < 0 {
+		panic("slices: negative RandFunc count")
+	}
+
+	if f == nil {
+		panic("slices: nil RandFunc selector")
+	}
+
+	m := len(a)
+	if m == 0 || n == 0 {
+		return []string{}
+	}
+
 	b := make([]string, n)
-	if m := len(a); m > 0 {
-		for i := 0; i < n; i++ {
-			b[i] = a[f(m)]
+	for i := 0; i < n; i++ {
+		idx := f(m)
+		if idx < 0 || idx >= m {
+			panic("slices: RandFunc selector out of range")
 		}
+		b[i] = a[idx]
 	}
 
 	return b
@@ -450,8 +531,7 @@ func Shift(a *[]string) string {
 // Shuffle returns a slice with randomized order of elements in a.
 // Note: You may want initialize the rand seed once in your program.
 //
-//    rand.Seed(time.Now().UnixNano())
-//
+//	rand.Seed(time.Now().UnixNano())
 func Shuffle(a []string) []string {
 	if m := len(a); m > 1 {
 		rand.Shuffle(m, func(i, j int) {
@@ -514,7 +594,6 @@ func Slice(a []string, offset, length int) []string {
 //
 // If b == nil then length elements are removed from a at offset.
 // If b != nil then the elements are inserted at offset.
-//
 func Splice(a []string, offset, length int, b ...string) []string {
 	m := len(a)
 	switch {
@@ -533,7 +612,7 @@ func Splice(a []string, offset, length int, b ...string) []string {
 		length = m - offset
 	}
 
-	if length <= 0 {
+	if length < 0 {
 		return a
 	}
 
@@ -582,9 +661,10 @@ func Split(a []string, sep string) [][]string {
 // Split divides a slice a into subslices when n elements match the string sep.
 //
 // The count determines the number of subslices to return:
-//   n > 0: at most n subslices; the last element will be the unsplit remainder.
-//   n == 0: the result is nil (zero subslices)
-//   n < 0: all subslices
+//
+//	n > 0: at most n subslices; the last element will be the unsplit remainder.
+//	n == 0: the result is nil (zero subslices)
+//	n < 0: all subslices
 //
 // For other cases, see the documentation for Split.
 func SplitN(a []string, sep string, n int) [][]string {
@@ -603,12 +683,20 @@ func TrimFunc(a []string, f ValueFunc) []string {
 		return a
 	}
 
-	var b []string
+	if len(a) == 0 {
+		return nil
+	}
+
+	b := make([]string, 0, len(a))
 
 	for i := range a {
 		if !f(a[i]) {
 			b = append(b, a[i])
 		}
+	}
+
+	if len(b) == 0 {
+		return nil
 	}
 
 	return b
@@ -682,24 +770,4 @@ func Walk(a []string, f func(idx int, val string)) {
 	for idx := range a {
 		f(idx, a[idx])
 	}
-}
-
-func genIndex(a, b []string, f func([]string, string) int) <-chan int {
-	l := len(b)
-
-	rc := make(chan int, l)
-	go func() {
-		defer close(rc)
-
-		if l == 0 {
-			rc <- -1
-			return
-		}
-
-		for i := 0; i < l; i++ {
-			rc <- f(a, b[i])
-		}
-	}()
-
-	return rc
 }
